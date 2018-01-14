@@ -1,0 +1,214 @@
+---
+title: "Milestone Report: Exploratory Analysis"
+author: "Bamini Balaji"
+date: "January 7, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+This is the Week 2 Milestone assignment for the Capstone project as a part of the Data Science Specialization on Coursera. 
+Presented here is an exploratory analysis on the [Capstone data set](https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip).
+The data includes three English language text files sourced from:
+
+- Blogs
+
+- Twitter
+
+- News
+
+
+The objective is to understand the distribution and relationship between the words, tokens, and phrases in the texts. Ultimately, this exploratory analysis will serve as a foundation to prepare the linguistic models for next word prediction.
+
+```{r echo=FALSE, results = "hide", cache=TRUE}
+#Sys.setenv(JAVA_HOME = "C:/Program Files/Java/jre1.8.0_151/")
+
+news.con <- file('final/en_US/en_US.news.txt','rb')
+news <- readLines(news.con, encoding = "UTF-8")
+close(news.con)
+
+blogs <- readLines("final/en_US/en_US.blogs.txt", encoding = "UTF-8")
+
+twitter <- readLines("final/en_US/en_US.twitter.txt", skipNul = TRUE, encoding = "UTF-8")
+
+
+blogs <- iconv(blogs, "UTF-8", "ASCII", sub="")
+twitter <- iconv(twitter, "UTF-8", "ASCII", sub="")
+news <- iconv(news, "UTF-8", "ASCII", sub="")
+```
+
+## Understanding the data
+
+Let's explore each data set to understand the basic features of the text file.
+
+```{r pressure, echo=TRUE, message=FALSE, warning=FALSE}
+library(stringr)
+library(stringi)
+library(tokenizers)
+library(wordcloud)
+library(knitr)
+
+all_data <- list(blogs, twitter, news)
+
+n_lines <- sapply(all_data, length)
+n_words <- sapply(all_data, function(x) sum(stri_count_boundaries(x, type="word")))
+n_sentence <- sapply(all_data, function(x) sum(stri_count_boundaries(x, type="sentence")))
+n_characters <- sapply(all_data, function(x) sum(stri_count_boundaries(x, type="character")))
+
+summary_data <- data.frame(Data_Source = c("Blogs", "Twitter", "News"), n_lines, n_words, n_sentence, n_characters)
+kable(summary_data)
+```
+
+The above table shows the number of lines, words, sentences and characters for each of the three texts.
+
+The histograms below show the number of words per line for each data set.
+```{r echo =FALSE, warning=FALSE, message=FALSE}
+blogs_wpl <- stri_count_boundaries(blogs, type="word")
+twitter_wpl <- stri_count_boundaries(twitter, type="word")
+news_wpl <- stri_count_boundaries(news, type="word")
+par(mfrow=c(1,3))
+hist(blogs_wpl, breaks = 800, xlim = c(0, 800), main = "Blogs", xlab = "Words per line")
+hist(twitter_wpl, main = "Twitter", xlab = "Words per line")
+hist(news_wpl, breaks = 200, xlim = c(0,600), main = "News", xlab = "Words per line")
+```
+
+The max words per line was `r max(blogs_wpl)` for blogs, `r max(twitter_wpl)` for twitter and `r max(news_wpl)` for news. 
+
+## Sample Data
+
+Clearly, these are very large data sets. Hence it is necessary to sample representative data from each text file before performing further analyses. Data will be randomly sampled from each of the three files using the rbinom function. 
+
+```{r results=FALSE, cache=TRUE}
+# Sampling ~5000 lines of each of the data sets
+set.seed(123)
+bset <- rbinom(length(blogs), 1, 0.005)
+sampleb <- blogs[which(bset %in% 1)]
+
+set.seed(987)
+tset <- rbinom(length(twitter), 1, 0.002)
+samplet <- twitter[which(tset %in% 1)]
+
+set.seed(106)
+nset <- rbinom(length(news), 1, 0.005)
+samplen <- news[which(nset %in% 1)]
+
+# Combining sub-sample from blogs, twitter and news
+sample <- c(sampleb, samplet, samplen)
+```
+
+Further exploratory analyses will be performed with the sample data set that combines approximately 5000 lines from each of the three text sources.
+
+
+## Generating a Clean Corpus
+
+```{r include=FALSE}
+badWords <- c("4r5e", "5h1t", "5hit", "a55", "anal", "anus", "ar5e", "arrse", "arse", "ass", "ass-fucker", 
+                "asses", "assfucker", "assfukka", "asshole", "assholes", "asswhole", "a_s_s", "b!tch", "b00bs", 
+                "b17ch", "b1tch", "ballbag", "balls", "ballsack", "bastard", "beastial", "beastiality", "bellend", 
+                "bestial", "bestiality", "bi+ch", "biatch", "bitch", "bitcher", "bitchers", "bitches", "bitchin", 
+                "bitching", "bloody", "blow job", "blowjob", "blowjobs", "boiolas", "bollock", "bollok", "boner", 
+                "boob", "boobs", "booobs", "boooobs", "booooobs", "booooooobs", "breasts", "buceta", "bugger", "bum", 
+                "bunny fucker", "butt", "butthole", "buttmuch", "buttplug", "c0ck", "c0cksucker", "carpet muncher", 
+                "cawk", "chink", "cipa", "cl1t", "clit", "clitoris", "clits", "cnut", "cock", "cock-sucker", "cockface", 
+                "cockhead", "cockmunch", "cockmuncher", "cocks", "cocksuck", "cocksucked", "cocksucker", "cocksucking", 
+                "cocksucks", "cocksuka", "cocksukka", "cok", "cokmuncher", "coksucka", "coon", "cox", "crap", "cum", 
+                "cummer", "cumming", "cums", "cumshot", "cunilingus", "cunillingus", "cunnilingus", "cunt", "cuntlick", 
+                "cuntlicker", "cuntlicking", "cunts", "cyalis", "cyberfuc", "cyberfuck", "cyberfucked", "cyberfucker", 
+                "cyberfuckers", "cyberfucking", "d1ck", "damn", "dick", "dickhead", "dildo", "dildos", "dink", "dinks", 
+                "dirsa", "dlck", "dog-fucker", "doggin", "dogging", "donkeyribber", "doosh", "duche", "dyke", "ejaculate", 
+                "ejaculated", "ejaculates", "ejaculating", "ejaculatings", "ejaculation", "ejakulate", "f u c k", 
+                "f u c k e r", "f4nny", "fag", "fagging", "faggitt", "faggot", "faggs", "fagot", "fagots", "fags", 
+                "fanny", "fannyflaps", "fannyfucker", "fanyy", "fatass", "fcuk", "fcuker", "fcuking", "feck", "fecker", 
+                "felching", "fellate", "fellatio", "fingerfuck", "fingerfucked", "fingerfucker", "fingerfuckers", 
+                "fingerfucking", "fingerfucks", "fistfuck", "fistfucked", "fistfucker", "fistfuckers", "fistfucking", 
+                "fistfuckings", "fistfucks", "flange", "fook", "fooker", "fuck", "fucka", "fucked", "fucker", "fuckers", 
+                "fuckhead", "fuckheads", "fuckin", "fucking", "fuckings", "fuckingshitmotherfucker", "fuckme", "fucks", 
+                "fuckwhit", "fuckwit", "fudge packer", "fudgepacker", "fuk", "fuker", "fukker", "fukkin", "fuks", 
+                "fukwhit", "fukwit", "fux", "fux0r", "f_u_c_k", "gangbang", "gangbanged", "gangbangs", "gaylord", 
+                "gaysex", "goatse", "God", "god-dam", "god-damned", "goddamn", "goddamned", "hardcoresex", "hell", 
+                "heshe", "hoar", "hoare", "hoer", "homo", "hore", "horniest", "horny", "hotsex", "jack-off", "jackoff", 
+                "jap", "jerk-off", "jism", "jiz", "jizm", "jizz", "kawk", "knob", "knobead", "knobed", "knobend", "knobhead", 
+                "knobjocky", "knobjokey", "kock", "kondum", "kondums", "kum", "kummer", "kumming", "kums", "kunilingus", 
+                "l3i+ch", "l3itch", "labia", "lust", "lusting", "m0f0", "m0fo", "m45terbate", "ma5terb8", "ma5terbate", 
+                "masochist", "master-bate", "masterb8", "masterbat*", "masterbat3", "masterbate", "masterbation", 
+                "masterbations", "masturbate", "mo-fo", "mof0", "mofo", "mothafuck", "mothafucka", "mothafuckas", 
+                "mothafuckaz", "mothafucked", "mothafucker", "mothafuckers", "mothafuckin", "mothafucking", "mothafuckings",
+                "mothafucks", "mother fucker", "motherfuck", "motherfucked", "motherfucker", "motherfuckers", "motherfuckin", 
+                "motherfucking", "motherfuckings", "motherfuckka", "motherfucks", "muff", "mutha", "muthafecker", "muthafuckker", 
+                "muther", "mutherfucker", "n1gga", "n1gger", "nazi", "nigg3r", "nigg4h", "nigga", "niggah", "niggas", 
+                "niggaz", "nigger", "niggers", "nob", "nob jokey", "nobhead", "nobjocky", "nobjokey", "numbnuts", 
+                "nutsack", "orgasim", "orgasims", "orgasm", "orgasms", "p0rn", "pawn", "pecker", "penis", "penisfucker", 
+                "phonesex", "phuck", "phuk", "phuked", "phuking", "phukked", "phukking", "phuks", "phuq", "pigfucker", 
+                "pimpis", "piss", "pissed", "pisser", "pissers", "pisses", "pissflaps", "pissin", "pissing", "pissoff", 
+                "poop", "porn", "porno", "pornography", "pornos", "prick", "pricks", "pron", "pube", "pusse", "pussi", 
+                "pussies", "pussy", "pussys", "rectum", "retard", "rimjaw", "rimming", "s hit", "s.o.b.", "sadist", "schlong", 
+                "screwing", "scroat", "scrote", "scrotum", "semen", "sex", "sh!+", "sh!t", "sh1t", "shag", "shagger", "shaggin",
+                "shagging", "shemale", "shi+", "shit", "shitdick", "shite", "shited", "shitey", "shitfuck", "shitfull", 
+                "shithead", "shiting", "shitings", "shits", "shitted", "shitter", "shitters", "shitting", "shittings", 
+                "shitty", "skank", "slut", "sluts", "smegma", "smut", "snatch", "son-of-a-bitch", "spac", "spunk", 
+                "s_h_i_t", "t1tt1e5", "t1tties", "teets", "teez", "testical", "testicle", "tit", "titfuck", "tits", 
+                "titt", "tittie5", "tittiefucker", "titties", "tittyfuck", "tittywank", "titwank", "tosser", "turd", "tw4t",
+                "twat", "twathead", "twatty", "twunt", "twunter", "v14gra", "v1gra", "vagina", "viagra", "vulva", "w00se", 
+                "wang", "wank", "wanker", "wanky", "whoar", "whore", "willies", "willy", "xrated", "xxx")
+```
+
+These data sets may contain words of offensive and profane meaning. A list of `r length(badWords)` bad words can be found on [github](https://github.com/web-mech/badwords-list/blob/master/lib/array.js). Let's remove any of these bad words from the sample data set.  
+
+Let's also remove extra whitespaces, punctuations and numbers for ease of analysis.
+
+```{r message=FALSE, warning=FALSE}
+library(tm)
+cleanSample <- removeWords(sample, badWords)
+n_sampleWords <- sum(stri_count_words(sample))
+n_cleanSampleWords <- sum(stri_count_words(cleanSample))
+
+sampleCorpora <- VCorpus(VectorSource(sample))
+
+funs <- list(stripWhitespace, removePunctuation, removeNumbers, content_transformer(tolower))
+sampleCorpora <- tm_map(sampleCorpora, FUN = tm_reduce, tmFuns = funs)
+sampleCorpora <- tm_map(sampleCorpora, removeWords, badWords)
+```
+
+This suggests that only `r 100*(n_sampleWords - n_cleanSampleWords)/n_sampleWords`% of the words in the sample data were "bad words". 
+
+## N-gram Tokenization
+
+Let's create 1-gram, 2-gram and 3-gram tokens of the data set. 
+The bar graphs below show the 20 most common 1-gram, 2-gram and 3-gram word sets in the sample corpora.
+
+```{r message=FALSE, warning=FALSE}
+library(RWeka)
+
+unigram <- function(x) NGramTokenizer(x, Weka_control(min=1, max=1))
+bigram <- function(x) NGramTokenizer(x, Weka_control(min=2, max=2))
+trigram <- function(x) NGramTokenizer(x, Weka_control(min=3, max=3))
+
+tdm1 <- removeSparseTerms(TermDocumentMatrix(sampleCorpora, control = list(tokenize = unigram)),0.999)
+tdm2 <- removeSparseTerms(TermDocumentMatrix(sampleCorpora, control = list(tokenize = bigram)),0.999)
+tdm3 <- removeSparseTerms(TermDocumentMatrix(sampleCorpora, control = list(tokenize = trigram)),0.999)
+
+head(findFreqTerms(tdm1, lowfreq=200)) # Most frequent 1-grams
+head(twograms <- findFreqTerms(tdm2, lowfreq=100)) # Most frequent 2-grams
+head(threegrams <- findFreqTerms(tdm3, lowfreq=50)) # Most frequent 3-grams
+
+freq1 <- sort(rowSums(as.matrix(tdm1)), decreasing = TRUE)
+freq2 <- sort(rowSums(as.matrix(tdm2)), decreasing = TRUE)
+freq3 <- sort(rowSums(as.matrix(tdm3)), decreasing = TRUE)
+
+barplot(freq1[1:20], las = 2, ylab = "Single Word Frequency")
+barplot(freq2[1:20], las = 2, ylab = "Couple Word Frequency", cex.names = 0.9)
+barplot(freq3[1:20], las = 2, ylab = "Triple Word Frequency", cex.names = 0.57)
+```
+
+## Summary
+
+This exploratory analysis performs the following 
+
+- provides an overview of the blogs, twitter and news data sets 
+- samples a representative subset of the datasets 
+- cleans and tokenizes the data subset 
+- evaluates the most common 1-gram, 2-gram and 3-gram words
