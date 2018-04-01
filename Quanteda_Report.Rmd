@@ -1,0 +1,454 @@
+---
+title: "Quanteda"
+author: "Bamini Balaji"
+date: "March 6, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Load Necessary Packages
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+setwd("C:/Users/bamini/Documents/Coursera/Capstone/final/en_US")
+library(quanteda)
+library(readtext)
+library(data.table)
+library(dplyr)
+library(stringi)
+library(stringr)
+```
+
+
+
+## Reading the Data
+
+Data is read in as UTF-8 encoding and converted to ASCII for ease of processing. Unknown characters are substituted with an empty string.
+
+
+```{r cache=TRUE}
+blogs <- readLines("C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/en_US.blogs.txt", encoding = "UTF-8")
+twitter <- readLines("C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/en_US.twitter.txt", skipNul = TRUE, encoding = "UTF-8")
+
+news.con <- file('C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/en_US.news.txt','rb')
+news <- readLines(news.con, encoding = "UTF-8")
+close(news.con)
+
+blogs <- iconv(blogs, "UTF-8", "ASCII", sub="")
+twitter <- iconv(twitter, "UTF-8", "ASCII", sub="")
+news <- iconv(news, "UTF-8", "ASCII", sub="")
+
+b_size <- (object.size(blogs))/(10^6)
+t_size <- (object.size(twitter))/(10^6)
+n_size <- (object.size(news))/(10^6)
+
+```
+
+The size of each data is as follows:
+
+- blogs: `r b_size` MB
+- twitter: `r t_size` MB
+- news: `r n_size` MB
+
+
+
+
+## Sampling Data
+
+Data is sampled into five text segments, each containing 20% of each of the three texts.
+
+
+```{r cache=TRUE}
+b_lines <- ceiling(length(blogs)/5)
+t_lines <- ceiling(length(twitter)/5)
+n_lines <- ceiling(length(news)/5)
+
+blogs_s <- split(blogs, ceiling(seq_along(blogs)/b_lines))
+twitter_s <- split(twitter, ceiling(seq_along(twitter)/t_lines))
+news_s <- split(news, ceiling(seq_along(news)/n_lines))
+
+sample1 <- c(blogs_s$`1`, twitter_s$`1`, news_s$`1`)
+sample2 <- c(blogs_s$`2`, twitter_s$`2`, news_s$`2`)
+sample3 <- c(blogs_s$`3`, twitter_s$`3`, news_s$`3`)
+sample4 <- c(blogs_s$`4`, twitter_s$`4`, news_s$`4`)
+sample5 <- c(blogs_s$`5`, twitter_s$`5`, news_s$`5`)
+
+#writeLines(sample1, "C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/sample1.txt", useBytes = TRUE)
+#writeLines(sample2, "C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/sample2.txt", useBytes = TRUE)
+#writeLines(sample3, "C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/sample3.txt", useBytes = TRUE)
+#writeLines(sample4, "C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/sample4.txt", useBytes = TRUE)
+#writeLines(sample5, "C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/sample5.txt", useBytes = TRUE)
+```
+
+
+## Analysis of Sample Lines
+
+These next set of steps in the analysis section are to be performed for each sample file.
+
+Let's first read one of the text segments and create a corpus. Next let's tokenize the corpus while removing numbers, punctuations, symbols, twitter handles and urls. 
+
+For unigrams and bigrams we can use the entire text:
+
+```{r}
+blogs <- gsub("_+", "", blogs)
+blogs <- stri_replace_all_regex(blogs, "\\S*\\d+\\S*", "")
+twitter <- gsub("_+", "", twitter)
+twitter <- stri_replace_all_regex(twitter, "\\S*\\d+\\S*", "")
+news <- gsub("_+", "", news)
+news <- stri_replace_all_regex(news, "\\S*\\d+\\S*", "")
+
+alltexts <- rbind(blogs, twitter, news)
+
+corp <- corpus(alltexts)
+
+tok <- tokens(corp, what="word", remove_numbers = TRUE, remove_punct = TRUE, 
+              remove_symbols = TRUE, remove_twitter = TRUE, remove_url = TRUE, 
+              remove_hyphens = TRUE)
+
+
+```
+
+
+For trigrams and larger, lets use the split texts:
+
+```{r}
+sample <- readtext("C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/sample3.txt", encoding = "UTF-8")
+sampleClean <- gsub("_+", "", sample)
+sampleClean <- stri_replace_all_regex(sampleClean, "\\S*\\d+\\S*", "")
+
+corp <- corpus(sampleClean)
+
+tok <- tokens(corp, what="word", remove_numbers = TRUE, remove_punct = TRUE, 
+              remove_symbols = TRUE, remove_twitter = TRUE, remove_url = TRUE, 
+              remove_hyphens = TRUE)
+
+```
+
+Now let's remove the profanity from these tokens
+
+```{r, include = FALSE}
+badWords <- c("4r5e", "5h1t", "5hit", "a55", "anal", "anus", "ar5e", "arrse", "arse", "ass", "ass-fucker", 
+              "asses", "assfucker", "assfukka", "asshole", "assholes", "asswhole", "a_s_s", "b!tch", "b00bs", 
+              "b17ch", "b1tch", "ballbag", "balls", "ballsack", "bastard", "beastial", "beastiality", "bellend", 
+              "bestial", "bestiality", "bi+ch", "biatch", "bitch", "bitcher", "bitchers", "bitches", "bitchin", 
+              "bitching", "bloody", "blow job", "blowjob", "blowjobs", "boiolas", "bollock", "bollok", "boner", 
+              "boob", "boobs", "booobs", "boooobs", "booooobs", "booooooobs", "breasts", "buceta", "bugger", "bum", 
+              "bunny fucker", "butt", "butthole", "buttmuch", "buttplug", "c0ck", "c0cksucker", "carpet muncher", 
+              "cawk", "chink", "cipa", "cl1t", "clit", "clitoris", "clits", "cnut", "cock", "cock-sucker", "cockface", 
+              "cockhead", "cockmunch", "cockmuncher", "cocks", "cocksuck", "cocksucked", "cocksucker", "cocksucking", 
+              "cocksucks", "cocksuka", "cocksukka", "cok", "cokmuncher", "coksucka", "coon", "cox", "crap", "cum", 
+              "cummer", "cumming", "cums", "cumshot", "cunilingus", "cunillingus", "cunnilingus", "cunt", "cuntlick", 
+              "cuntlicker", "cuntlicking", "cunts", "cyalis", "cyberfuc", "cyberfuck", "cyberfucked", "cyberfucker", 
+              "cyberfuckers", "cyberfucking", "d1ck", "damn", "dick", "dickhead", "dildo", "dildos", "dink", "dinks", 
+              "dirsa", "dlck", "dog-fucker", "doggin", "dogging", "donkeyribber", "doosh", "duche", "dyke", "ejaculate", 
+              "ejaculated", "ejaculates", "ejaculating", "ejaculatings", "ejaculation", "ejakulate", "f u c k", 
+              "f u c k e r", "f4nny", "fag", "fagging", "faggitt", "faggot", "faggs", "fagot", "fagots", "fags", 
+              "fanny", "fannyflaps", "fannyfucker", "fanyy", "fatass", "fcuk", "fcuker", "fcuking", "feck", "fecker", 
+              "felching", "fellate", "fellatio", "fingerfuck", "fingerfucked", "fingerfucker", "fingerfuckers", 
+              "fingerfucking", "fingerfucks", "fistfuck", "fistfucked", "fistfucker", "fistfuckers", "fistfucking", 
+              "fistfuckings", "fistfucks", "flange", "fook", "fooker", "fuck", "fucka", "fucked", "fucker", "fuckers", 
+              "fuckhead", "fuckheads", "fuckin", "fucking", "fuckings", "fuckingshitmotherfucker", "fuckme", "fucks", 
+              "fuckwhit", "fuckwit", "fudge packer", "fudgepacker", "fuk", "fuker", "fukker", "fukkin", "fuks", 
+              "fukwhit", "fukwit", "fux", "fux0r", "f_u_c_k", "gangbang", "gangbanged", "gangbangs", "gaylord", 
+              "gaysex", "goatse", "God", "god-dam", "god-damned", "goddamn", "goddamned", "hardcoresex", "hell", 
+              "heshe", "hoar", "hoare", "hoer", "homo", "hore", "horniest", "horny", "hotsex", "jack-off", "jackoff", 
+              "jap", "jerk-off", "jism", "jiz", "jizm", "jizz", "kawk", "knob", "knobead", "knobed", "knobend", "knobhead", 
+              "knobjocky", "knobjokey", "kock", "kondum", "kondums", "kum", "kummer", "kumming", "kums", "kunilingus", 
+              "l3i+ch", "l3itch", "labia", "lust", "lusting", "m0f0", "m0fo", "m45terbate", "ma5terb8", "ma5terbate", 
+              "masochist", "master-bate", "masterb8", "masterbat*", "masterbat3", "masterbate", "masterbation", 
+              "masterbations", "masturbate", "mo-fo", "mof0", "mofo", "mothafuck", "mothafucka", "mothafuckas", 
+              "mothafuckaz", "mothafucked", "mothafucker", "mothafuckers", "mothafuckin", "mothafucking", "mothafuckings",
+              "mothafucks", "mother fucker", "motherfuck", "motherfucked", "motherfucker", "motherfuckers", "motherfuckin", 
+              "motherfucking", "motherfuckings", "motherfuckka", "motherfucks", "muff", "mutha", "muthafecker", "muthafuckker", 
+              "muther", "mutherfucker", "n1gga", "n1gger", "nazi", "nigg3r", "nigg4h", "nigga", "niggah", "niggas", 
+              "niggaz", "nigger", "niggers", "nob", "nob jokey", "nobhead", "nobjocky", "nobjokey", "numbnuts", 
+              "nutsack", "orgasim", "orgasims", "orgasm", "orgasms", "p0rn", "pawn", "pecker", "penis", "penisfucker", 
+              "phonesex", "phuck", "phuk", "phuked", "phuking", "phukked", "phukking", "phuks", "phuq", "pigfucker", 
+              "pimpis", "piss", "pissed", "pisser", "pissers", "pisses", "pissflaps", "pissin", "pissing", "pissoff", 
+              "poop", "porn", "porno", "pornography", "pornos", "prick", "pricks", "pron", "pube", "pusse", "pussi", 
+              "pussies", "pussy", "pussys", "rectum", "retard", "rimjaw", "rimming", "s hit", "s.o.b.", "sadist", "schlong", 
+              "screwing", "scroat", "scrote", "scrotum", "semen", "sex", "sh!+", "sh!t", "sh1t", "shag", "shagger", "shaggin",
+              "shagging", "shemale", "shi+", "shit", "shitdick", "shite", "shited", "shitey", "shitfuck", "shitfull", 
+              "shithead", "shiting", "shitings", "shits", "shitted", "shitter", "shitters", "shitting", "shittings", 
+              "shitty", "skank", "slut", "sluts", "smegma", "smut", "snatch", "son-of-a-bitch", "spac", "spunk", 
+              "s_h_i_t", "t1tt1e5", "t1tties", "teets", "teez", "testical", "testicle", "tit", "titfuck", "tits", 
+              "titt", "tittie5", "tittiefucker", "titties", "tittyfuck", "tittywank", "titwank", "tosser", "turd", "tw4t",
+              "twat", "twathead", "twatty", "twunt", "twunter", "v14gra", "v1gra", "vagina", "viagra", "vulva", "w00se", 
+              "wang", "wank", "wanker", "wanky", "whoar", "whore", "willies", "willy", "xrated", "xxx")
+
+
+tok_noBad <- tokens_remove(tok, badWords)
+
+```
+
+Let's create a document feature matrix and then tokenize these into n_grams
+
+```{r}
+unigramdfm <- dfm(tok_noBad)
+
+bigram <- tokens_ngrams(tok_noBad, n = 2, concatenator = " ")
+bigramdfm <- dfm_trim(dfm(bigram))
+
+trigram <- tokens_ngrams(tok_noBad, n = 3, concatenator = " ")
+trigramdfm <- dfm_trim(dfm(trigram))
+
+tetragram <- tokens_ngrams(tok_noBad, n = 4, concatenator = " ")
+tetragramdfm <- dfm_trim(dfm(tetragram))
+
+pentagram <- tokens_ngrams(tok_noBad, n = 5, concatenator = " ")
+pentagramdfm <- dfm_trim(dfm(pentagram))
+```
+
+
+```{r}
+rm(sample, corp, tok, tok_noBad, sampleClean, bigram, trigram, tetragram, pentagram)
+```
+
+```{r}
+saveRDS(gram5, "C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/gram5_4.rds")
+```
+
+
+
+```{r}
+gram1 <- convert(unigramdfm, to = "data.frame")
+test <- data.frame(names(gram1)[2:dim(gram1)[2]])
+gram1 <- mutate(test, counts = colSums(gram1[,2:dim(gram1)[2]]))
+gram1 <- as.data.table(gram1)
+saveRDS(gram1, "C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/gram1_2.rds")
+rm(gram, unigramdfm)
+
+gram2 <- convert(bigramdfm, to = "data.frame")
+test <- data.frame(names(gram2)[2:dim(gram2)[2]])
+gram2 <- mutate(test, counts = colSums(gram2[,2:dim(gram2)[2]]))
+gram2 <- as.data.table(gram2)
+gram2 <- gram2[,c("base", "predicted") := tstrsplit(names.gram2..2.dim.gram2..2.., " ", fixed = TRUE)][, 2:4]
+saveRDS(gram2, "C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/gram2_2.rds")
+rm(gram2, bigramdfm)
+
+gram3 <- convert(trigramdfm, to = "data.frame")
+test <- data.frame(names(gram3)[2:dim(gram3)[2]])
+gram3 <- mutate(test, counts = colSums(gram3[,2:dim(gram3)[2]]))
+gram3 <- as.data.table(gram3)
+gram3 <- gram3[,c("v1", "v2", "predicted") := tstrsplit(names.gram3..2.dim.gram3..2.., " ", fixed = TRUE)][, 2:5]
+gram3 <- mutate(gram3, base = paste(v1, v2, " "))[,c(1, 4, 5)]
+saveRDS(gram3, "C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/gram3_2.rds")
+rm(gram3, trigramdfm)
+
+gram4 <- convert(tetragramdfm, to = "data.frame")
+gram4 <- gram4[,2:dim(gram4)[2]]
+gram4 <- data.table(gram4)
+test <- as.data.table(names(gram4))
+vars <- transpose(gram4)
+gram4 <- cbind(test, vars)
+names(gram4)[1] <- "names.gram4."
+gram4 <- gram4[,c("v1", "v2", "v3", "predicted") := tstrsplit(names.gram4., " ", fixed = TRUE)][, 2:6]
+gram4 <- mutate(gram4, base = paste(v1, v2, v3, " "))[,c(1, 5, 6)]
+names(gram4)[1] <- "counts"
+saveRDS(gram4, "C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/gram4_2.rds")
+rm(gram4, tetragramdfm)
+
+gram5 <- convert(pentagramdfm, to = "data.frame")
+gram5 <- gram5[,2:dim(gram5)[2]]
+gram5 <- data.table(gram5)
+test5 <- names(gram5)
+vars5 <- transpose(gram5)
+gram5 <- cbind(test5, vars5)
+gram5 <- gram5[,c("v1", "v2", "v3", "v4", "predicted") := tstrsplit(test5, " ", fixed = TRUE)][, 2:7]
+gram5 <- mutate(gram5, base = paste(v1, v2, v3, v4, " "))[,c(1, 6, 7)]
+names(gram5)[1] <- "counts"
+gram5 <- as.data.table(gram5)
+saveRDS(gram5, "C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/gram5_3.rds")
+```
+
+
+####################################################################
+
+## Combining n-grams data tables
+
+
+```{r}
+test <- rbind(gram1_1, gram1_2, gram1_3, gram1_4, gram1_5)
+unigrams <- test[, sum(counts), by = .(names.gram1.)]
+
+
+test <- rbind(gram2_1, gram2_2, gram2_3, gram2_4, gram2_5)
+bigrams <- test[, sum(counts), by = .(base, predicted)]
+
+test <- rbind(gram3_1, gram3_2, gram3_3, gram3_4, gram3_5)
+test <- as.data.table(test)
+trigrams <- test[, sum(counts), by = .(predicted, base)]
+
+gram4_1 <- gram4_1[counts > 1]
+gram4_2 <- gram4_2[counts > 1]
+gram4_3 <- gram4_3[counts > 1]
+gram4_4 <- gram4_4[counts > 1]
+gram4_5 <- gram4_5[counts > 1]
+test <- rbind(gram4_1, gram4_2, gram4_3, gram4_4, gram4_5)
+tetragams <- test[, sum(counts), by = .(predicted, base)]
+
+gram5_1 <- gram5_1[counts > 1]
+gram5_2 <- gram5_2[counts > 1]
+gram5_3 <- gram5_3[counts > 1]
+gram5_4 <- gram5_4[counts > 1]
+gram5_5 <- gram5_5[counts > 1]
+test <- rbind(gram5_1, gram5_2, gram5_3, gram5_4, gram5_5)
+pentagrams <- test[, sum(counts), by = .(predicted, base)]
+```
+
+```{r}
+gram4_1 <- readRDS("C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/gram4_1.rds")
+gram4_2 <- readRDS("C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/gram4_2.rds")
+gram4_3 <- readRDS("C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/gram4_3.rds")
+gram4_4 <- readRDS("C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/gram4_4.rds")
+gram4_5 <- readRDS("C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/gram4_5.rds")
+
+gram4_1 <- as.data.table(gram4_1)
+gram4_2 <- as.data.table(gram4_2)
+gram4_3 <- as.data.table(gram4_3)
+gram4_4 <- as.data.table(gram4_4)
+gram4_5 <- as.data.table(gram4_5)
+
+```
+
+## Calculating Probabilities
+
+```{r}
+test <- rbind(gram1_1, gram1_2, gram1_3, gram1_4, gram1_5)
+unigrams <- test[, sum(counts), by = .(names.gram1..2.dim.gram1..2..)]
+
+names(unigrams)[1] <- "unigram"
+names(unigrams)[2] <- "unicounts"
+
+unigrams[, uniprob := counts/sum(unigrams$counts)]
+unigrams[, loguniprob := log(prob)]
+
+saveRDS(unigrams, "C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/unigrams.rds")
+
+```
+
+
+Bigram probabilities:
+
+```{r}
+
+test <- merge(gram2_1, gram2_2, by = c("base", "predicted"), all = TRUE)
+test$counts.x[is.na(test$counts.x)] <- 0
+test$counts.y[is.na(test$counts.y)] <- 0
+test[, counts := counts.x + counts.y]
+test <- test[, .(base, predicted, counts)]
+
+test <- merge(test, gram2_3, by = c("base", "predicted"), all = TRUE)
+test$counts.x[is.na(test$counts.x)] <- 0
+test$counts.y[is.na(test$counts.y)] <- 0
+test[, counts := counts.x + counts.y]
+test <- test[, .(base, predicted, counts)]
+
+test <- merge(test, gram2_4, by = c("base", "predicted"), all = TRUE)
+test$counts.x[is.na(test$counts.x)] <- 0
+test$counts.y[is.na(test$counts.y)] <- 0
+test[, counts := counts.x + counts.y]
+test <- test[, .(base, predicted, counts)]
+
+test <- merge(test, gram2_5, by = c("base", "predicted"), all = TRUE)
+test$counts.x[is.na(test$counts.x)] <- 0
+test$counts.y[is.na(test$counts.y)] <- 0
+test[, counts := counts.x + counts.y]
+test <- test[, .(base, predicted, counts)]
+
+bigrams <- test[, basecounts := sum(counts), by= base]
+bigrams <- test[, prob := counts/basecounts]
+bigrams <- bigrams[!(counts == 1 & basecounts ==1)]
+
+test <- bigrams[bigrams[, .I[prob == max(prob)], by=base]$V1]
+trial <- merge(test, unigrams, by.y = "unigram", by.x = "predicted")
+dbbi <- trial[trial[, .I[unicounts == max(unicounts)], by=base]$V1]
+```
+
+
+Similarly, trigram and tetragram probabilities...
+
+```{r}
+ngrams <- function(part1, part2, part3, part4, part5) {
+  test <- merge(part1, part2, by = c("base", "predicted"), all = TRUE)
+  test$counts.x[is.na(test$counts.x)] <- 0
+  test$counts.y[is.na(test$counts.y)] <- 0
+  test[, counts := counts.x + counts.y]
+  test <- test[, .(base, predicted, counts)]
+  rm(part1, part2)
+
+  test <- merge(test, part3, by = c("base", "predicted"), all = TRUE)
+  test$counts.x[is.na(test$counts.x)] <- 0
+  test$counts.y[is.na(test$counts.y)] <- 0
+  test[, counts := counts.x + counts.y]
+  test <- test[, .(base, predicted, counts)]
+  rm(part3)
+
+  test <- merge(test, part4, by = c("base", "predicted"), all = TRUE)
+  test$counts.x[is.na(test$counts.x)] <- 0
+  test$counts.y[is.na(test$counts.y)] <- 0
+  test[, counts := counts.x + counts.y]
+  test <- test[, .(base, predicted, counts)]
+  rm(part4)
+
+  test <- merge(test, part5, by = c("base", "predicted"), all = TRUE)
+  test$counts.x[is.na(test$counts.x)] <- 0
+  test$counts.y[is.na(test$counts.y)] <- 0
+  test[, counts := counts.x + counts.y]
+  test <- test[, .(base, predicted, counts)]
+  
+  return(test)
+  
+}
+
+trigrams <- ngrams(gram3_1, gram3_2, gram3_3, gram3_4, gram3_5)
+
+
+trigram <- trigrams[, basecounts := sum(counts), by= base]
+trigram <- trigram[, prob := counts/basecounts]
+trigram <- trigram[!(counts == 1 & basecounts ==1)]
+test <- trigrams[, lapply(.SD, trimws), .SDcols = "base"]
+names(trigrams)[1] <- "oldbase"
+trigrams <- cbind(test, trigrams)
+trigrams <- trigrams[, .(base, predicted, counts, basecounts, prob)]
+
+
+test <- trigrams[trigrams[, .I[prob == max(prob)], by=base]$V1]
+trial <- merge(test, unigrams, by.y = "unigram", by.x = "predicted")
+dbtri <- trial[trial[, .I[uniprob == max(uniprob)], by=base]$V1]
+
+
+
+tetragrams <- ngrams(gram4_1, gram4_2, gram4_3, gram4_4, gram4_5)
+
+
+tetragrams <- tetragams[, basecounts := sum(counts), by= base]
+tetragrams <- tetragrams[, prob := counts/basecounts]
+tetragrams <- tetragrams[!(counts == 1 & basecounts ==1)]
+test <- tetragrams[, lapply(.SD, trimws), .SDcols = "base"]
+names(tetragrams)[1] <- "oldbase"
+tetragrams <- cbind(test, tetragrams)
+tetragrams <- tetragrams[, .(base, predicted, counts, basecounts, prob)]
+
+
+
+test <- tetragrams[tetragrams[, .I[prob == max(prob)], by=base]$V1]
+trial <- merge(test, unigrams, by.y = "unigram", by.x = "predicted")
+dbtetra <- trial[trial[, .I[uniprob == max(uniprob)], by=base]$V1]
+
+
+```
+
+
+Combining the prediction datasets:
+
+```{r}
+test <- merge(dbbi, dbtri, all = TRUE)
+test <- merge(test, dbtetra, all = TRUE)
+predictions <- test[, c("predicted", "base", "prob")]
+```
+
