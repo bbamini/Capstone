@@ -1,0 +1,59 @@
+---
+title: "Prediction Model"
+author: "Bamini Balaji"
+date: "April 5, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Prediction Data
+
+
+Let's start by loading necessary packages
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+setwd("C:/Users/bamini/Documents/Coursera/Capstone/final/en_US")
+library(quanteda)
+library(readtext)
+library(data.table)
+library(stringr)
+library(stringi)
+```
+
+
+
+```{r}
+dbase <- readRDS("C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/dbase.rds")
+```
+
+## Next Word Prediction
+
+```{r}
+nextword <- function(phrase) {
+  newphrase <- gsub("\\s+", " ", str_trim(gsub("(?!')[[:punct:]]", "", phrase, perl = TRUE)))
+  newphrase <- tolower(newphrase)
+  
+  last3words <- word(newphrase, -3, -1)
+  last2words <- word(newphrase, -2, -1)
+  lastword <- word(newphrase, -1)
+  
+  if (!!length(dbase[base == last3words, predicted])) {
+    nextwd <- dbase[base == last3words, predicted]
+    return(nextwd)
+  } else if (!!length(dbase[base == last2words, predicted])) {
+    nextwd <- dbase[base == last2words, predicted]
+    return(nextwd)
+  } else if (!!length(dbase[base == lastword, predicted])) {
+    nextwd <- dbase[base == lastword, predicted]
+    return(nextwd)
+  } else if (!length(dbase[base == lastword, predicted])) {
+    print("No Suggestions")
+  }
+}
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

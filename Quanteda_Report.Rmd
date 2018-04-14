@@ -204,16 +204,7 @@ pentagramdfm <- dfm_trim(dfm(pentagram))
 ```
 
 
-```{r}
-rm(sample, corp, tok, tok_noBad, sampleClean, bigram, trigram, tetragram, pentagram)
-```
-
-```{r}
-saveRDS(gram5, "C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/gram5_4.rds")
-```
-
-
-
+Not let's convert the document feature matrix into data.table objects that are easier to process
 ```{r}
 gram1 <- convert(unigramdfm, to = "data.frame")
 test <- data.frame(names(gram1)[2:dim(gram1)[2]])
@@ -252,17 +243,17 @@ names(gram4)[1] <- "counts"
 saveRDS(gram4, "C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/gram4_2.rds")
 rm(gram4, tetragramdfm)
 
-gram5 <- convert(pentagramdfm, to = "data.frame")
-gram5 <- gram5[,2:dim(gram5)[2]]
-gram5 <- data.table(gram5)
-test5 <- names(gram5)
-vars5 <- transpose(gram5)
-gram5 <- cbind(test5, vars5)
-gram5 <- gram5[,c("v1", "v2", "v3", "v4", "predicted") := tstrsplit(test5, " ", fixed = TRUE)][, 2:7]
-gram5 <- mutate(gram5, base = paste(v1, v2, v3, v4, " "))[,c(1, 6, 7)]
-names(gram5)[1] <- "counts"
-gram5 <- as.data.table(gram5)
-saveRDS(gram5, "C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/gram5_3.rds")
+#gram5 <- convert(pentagramdfm, to = "data.frame")
+#gram5 <- gram5[,2:dim(gram5)[2]]
+#gram5 <- data.table(gram5)
+#test5 <- names(gram5)
+#vars5 <- transpose(gram5)
+#gram5 <- cbind(test5, vars5)
+#gram5 <- gram5[,c("v1", "v2", "v3", "v4", "predicted") := tstrsplit(test5, " ", fixed = TRUE)][, 2:7]
+#gram5 <- mutate(gram5, base = paste(v1, v2, v3, v4, " "))[,c(1, 6, 7)]
+#names(gram5)[1] <- "counts"
+#gram5 <- as.data.table(gram5)
+#saveRDS(gram5, "C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/gram5_3.rds")
 ```
 
 
@@ -270,6 +261,7 @@ saveRDS(gram5, "C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/gram
 
 ## Combining n-grams data tables
 
+Let's merge the n-grams collected from the 5 sample segments
 
 ```{r}
 test <- rbind(gram1_1, gram1_2, gram1_3, gram1_4, gram1_5)
@@ -291,16 +283,16 @@ gram4_5 <- gram4_5[counts > 1]
 test <- rbind(gram4_1, gram4_2, gram4_3, gram4_4, gram4_5)
 tetragams <- test[, sum(counts), by = .(predicted, base)]
 
-gram5_1 <- gram5_1[counts > 1]
-gram5_2 <- gram5_2[counts > 1]
-gram5_3 <- gram5_3[counts > 1]
-gram5_4 <- gram5_4[counts > 1]
-gram5_5 <- gram5_5[counts > 1]
-test <- rbind(gram5_1, gram5_2, gram5_3, gram5_4, gram5_5)
-pentagrams <- test[, sum(counts), by = .(predicted, base)]
+#gram5_1 <- gram5_1[counts > 1]
+#gram5_2 <- gram5_2[counts > 1]
+#gram5_3 <- gram5_3[counts > 1]
+#gram5_4 <- gram5_4[counts > 1]
+#gram5_5 <- gram5_5[counts > 1]
+#test <- rbind(gram5_1, gram5_2, gram5_3, gram5_4, gram5_5)
+#pentagrams <- test[, sum(counts), by = .(predicted, base)]
 ```
 
-```{r}
+```{r echo = FALSE, results=hide}
 gram4_1 <- readRDS("C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/gram4_1.rds")
 gram4_2 <- readRDS("C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/gram4_2.rds")
 gram4_3 <- readRDS("C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/gram4_3.rds")
@@ -336,37 +328,39 @@ Bigram probabilities:
 
 ```{r}
 
-test <- merge(gram2_1, gram2_2, by = c("base", "predicted"), all = TRUE)
-test$counts.x[is.na(test$counts.x)] <- 0
-test$counts.y[is.na(test$counts.y)] <- 0
-test[, counts := counts.x + counts.y]
-test <- test[, .(base, predicted, counts)]
+midmerge <- merge(gram2_1, gram2_2, by = c("base", "predicted"), all = TRUE)
+midmerge$counts.x[is.na(midmerge$counts.x)] <- 0
+midmerge$counts.y[is.na(midmerge$counts.y)] <- 0
+midmerge[, counts := counts.x + counts.y]
+midmerge <- midmerge[, .(base, predicted, counts)]
 
-test <- merge(test, gram2_3, by = c("base", "predicted"), all = TRUE)
-test$counts.x[is.na(test$counts.x)] <- 0
-test$counts.y[is.na(test$counts.y)] <- 0
-test[, counts := counts.x + counts.y]
-test <- test[, .(base, predicted, counts)]
+midmerge2 <- merge(midmerge, gram2_3, by = c("base", "predicted"), all = TRUE)
+midmerge2$counts.x[is.na(midmerge2$counts.x)] <- 0
+midmerge2$counts.y[is.na(midmerge2$counts.y)] <- 0
+midmerge2[, counts := counts.x + counts.y]
+midmerge2 <- midmerge2[, .(base, predicted, counts)]
 
-test <- merge(test, gram2_4, by = c("base", "predicted"), all = TRUE)
-test$counts.x[is.na(test$counts.x)] <- 0
-test$counts.y[is.na(test$counts.y)] <- 0
-test[, counts := counts.x + counts.y]
-test <- test[, .(base, predicted, counts)]
+midmerge3 <- merge(midmerge2, gram2_4, by = c("base", "predicted"), all = TRUE)
+midmerge3$counts.x[is.na(midmerge3$counts.x)] <- 0
+midmerge3$counts.y[is.na(midmerge3$counts.y)] <- 0
+midmerge3[, counts := counts.x + counts.y]
+midmerge3 <- midmerge3[, .(base, predicted, counts)]
 
-test <- merge(test, gram2_5, by = c("base", "predicted"), all = TRUE)
-test$counts.x[is.na(test$counts.x)] <- 0
-test$counts.y[is.na(test$counts.y)] <- 0
-test[, counts := counts.x + counts.y]
-test <- test[, .(base, predicted, counts)]
+allgram2 <- merge(midmerge3, gram2_5, by = c("base", "predicted"), all = TRUE)
+allgram2$counts.x[is.na(allgram2$counts.x)] <- his0
+allgram2$counts.y[is.na(allgram2$counts.y)] <- 0
+allgram2[, counts := counts.x + counts.y]
+allgram2 <- allgram2[, .(base, predicted, counts)]
 
-bigrams <- test[, basecounts := sum(counts), by= base]
-bigrams <- test[, prob := counts/basecounts]
+bigrams <- allgram2[, basecounts := sum(counts), by= base]
+bigrams <- allgram2[, prob := counts/basecounts]
 bigrams <- bigrams[!(counts == 1 & basecounts ==1)]
+bigramsmall <- bigrams[(counts > 5)]
+bigramsmall <- bigramsmall[!(prob == 1)]
 
-test <- bigrams[bigrams[, .I[prob == max(prob)], by=base]$V1]
-trial <- merge(test, unigrams, by.y = "unigram", by.x = "predicted")
-dbbi <- trial[trial[, .I[unicounts == max(unicounts)], by=base]$V1]
+sortedbi <- bigramsmall[order(base, prob)]
+bitop1 <- sortedbi[, tail(.SD, 1), by = base]
+dbbi <- bitop1[, .(base, predicted)]
 ```
 
 
@@ -415,11 +409,12 @@ test <- trigrams[, lapply(.SD, trimws), .SDcols = "base"]
 names(trigrams)[1] <- "oldbase"
 trigrams <- cbind(test, trigrams)
 trigrams <- trigrams[, .(base, predicted, counts, basecounts, prob)]
+trigramsmall <- trigrams[!(prob ==1 & counts < 5)]
+trigramsmall <- trigramsmall[counts > 5]
 
-
-test <- trigrams[trigrams[, .I[prob == max(prob)], by=base]$V1]
-trial <- merge(test, unigrams, by.y = "unigram", by.x = "predicted")
-dbtri <- trial[trial[, .I[uniprob == max(uniprob)], by=base]$V1]
+sortedtri <- trigramsmall[order(base, prob)]
+tritop1 <- sortedtri[, tail(.SD, 1), by = base]
+dbtri <- tritop1[, .(base, predicted)]
 
 
 
@@ -428,18 +423,19 @@ tetragrams <- ngrams(gram4_1, gram4_2, gram4_3, gram4_4, gram4_5)
 
 tetragrams <- tetragams[, basecounts := sum(counts), by= base]
 tetragrams <- tetragrams[, prob := counts/basecounts]
-tetragrams <- tetragrams[!(counts == 1 & basecounts ==1)]
-test <- tetragrams[, lapply(.SD, trimws), .SDcols = "base"]
+tetragrams <- tetragrams[!(counts == 1 & basecounts ==1)] 
+# Removing words with probability of 1 because of 1 occurence 
+noextraspace <- tetragrams[, lapply(.SD, trimws), .SDcols = "base"]
 names(tetragrams)[1] <- "oldbase"
-tetragrams <- cbind(test, tetragrams)
+tetragrams <- cbind(noextraspace, tetragrams)
 tetragrams <- tetragrams[, .(base, predicted, counts, basecounts, prob)]
+tetragramsmall <- tetragrams[!(prob == 1 & counts < 6)]
+tetragramsmall <- tetragramsmall[(counts > 4)]
 
 
-
-test <- tetragrams[tetragrams[, .I[prob == max(prob)], by=base]$V1]
-trial <- merge(test, unigrams, by.y = "unigram", by.x = "predicted")
-dbtetra <- trial[trial[, .I[uniprob == max(uniprob)], by=base]$V1]
-
+sortedtetra <- tetragramsmall[order(base, prob)]
+tetratop1 <- sortedtetra[, tail(.SD, 1), by = base]
+dbtetra <- tetratop1[, .(base, predicted)]
 
 ```
 
@@ -448,7 +444,7 @@ Combining the prediction datasets:
 
 ```{r}
 test <- merge(dbbi, dbtri, all = TRUE)
-test <- merge(test, dbtetra, all = TRUE)
-predictions <- test[, c("predicted", "base", "prob")]
+dbase <- merge(test, dbtetra, all = TRUE)
 ```
+
 
