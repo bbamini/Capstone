@@ -16,16 +16,21 @@ shinyUI(fluidPage(
     # Application title
     titlePanel("Predict the Next Word"),
     
+    h3("Instructions"),
     
+
     # Text Input
     textInput("text1", label = h3("Text input"), value = "Enter text..."),
-    submitButton("Submit"),
+    actionButton("predict", label = "Predict"),
     
     
     wellPanel(
       h3("Possible next words"),
       textOutput("textpred")
-    )
+    ),
+    
+    actionButton("action", label = "Select"),
+    p("Click the button to update the text with the predicted next word.")
   )
   
 ))

@@ -13,18 +13,16 @@ library(stringi)
 library(stringr)
 
 # Define server logic required to draw a histogram
-shinyServer(function(input, output) {
+shinyServer(function(input, output, session) {
   
   dbase <- readRDS("C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/dbasesmall.rds")
   
   nextword <- function(phrase) {
     newphrase <- gsub("\\s+", " ", str_trim(gsub("(?!')[[:punct:]]", "", phrase, perl = TRUE)))
     newphrase <- tolower(newphrase)
-    
     last3words <- word(newphrase, -3, -1)
     last2words <- word(newphrase, -2, -1)
     lastword <- word(newphrase, -1)
-    
     if (!!length(dbase[base == last3words, predicted])) {
       nextwd <- dbase[base == last3words, predicted]
       return(nextwd)
@@ -39,13 +37,22 @@ shinyServer(function(input, output) {
     }
   }
   
-  wordpred <- reactive({
-    textinp <- input$text1
-    nextword(textinp)
+  
+  observe({
+    
+    x <- input$text1
+    wordpred <- reactive({
+      nextword(x)
+    })  
+    
+    observeEvent(input$predict,{
+      output$textpred <- renderText({wordpred()})  
+    })
+    
+    observeEvent(input$action, {
+      updateTextInput(session, "text1", value = isolate(paste(x, {wordpred()})))
+    })
+    
   })
-  
-  output$textpred <- renderText({wordpred()})
-  
-   
   
 })
