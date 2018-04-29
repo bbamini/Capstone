@@ -15,9 +15,34 @@ library(stringr)
 # Define server logic required to draw a histogram
 shinyServer(function(input, output, session) {
   
-  dbase <- readRDS("C:/Users/bamini/Documents/Coursera/Capstone/final/en_US/Rev/dbasesmall.rds")
+  # Read the data
+  dbase <- readRDS("dbasesmall.rds")
   
-
+  
+  #Backoff model
+  backoff <- function(phrase) {
+    newphrase <- gsub("\\s+", " ", str_trim(gsub("(?!')[[:punct:]]", "", phrase, perl = TRUE)))
+    newphrase <- tolower(newphrase)
+    
+    last3words <- word(newphrase, -3, -1)
+    last2words <- word(newphrase, -2, -1)
+    lastword <- word(newphrase, -1)
+    
+    if (!!length(dbase[base == last3words, predicted])) {
+      nextwd <- dbase[base == last3words, predicted]
+      return(nextwd)
+    } else if (!!length(dbase[base == last2words, predicted])) {
+      nextwd <- dbase[base == last2words, predicted]
+      return(nextwd)
+    } else if (!!length(dbase[base == lastword, predicted])) {
+      nextwd <- dbase[base == lastword, predicted]
+      return(nextwd)
+    } else if (!length(dbase[base == lastword, predicted])) {
+      print("No Suggestions")
+    }
+  }
+  
+  # Function to predict possible choices for the next word
   nextword <- function(phrase) {
     newphrase <- gsub("\\s+", " ", str_trim(gsub("(?!')[[:punct:]]", "", phrase, perl = TRUE)))
     newphrase <- tolower(newphrase)
@@ -34,8 +59,9 @@ shinyServer(function(input, output, session) {
   }
   
   
-  
+  # Prediction action button
   observeEvent(input$predict, {
+    output$backoffpred <- renderText(isolate(backoff(input$text1)))
     if (!is.na(nextword(input$text1)[1])) {
       output$textpred1 <- renderText(isolate(nextword(input$text1)[1]))
     } else { output$textpred1 <- renderText("")}
@@ -49,6 +75,8 @@ shinyServer(function(input, output, session) {
     } else { output$textpred3 <- renderText("")}
   })
   
+  
+  # Action button to select various features
   observeEvent(input$select1, {
     if (!is.na(nextword(input$text1)[1])) {
       newprediction1 <- nextword(input$text1)[1]  
